@@ -1,0 +1,164 @@
+package com.subastasya.backend.controller;
+
+import com.subastasya.backend.controller.dto.ActivarCuentaRequest;
+import com.subastasya.backend.controller.dto.LoginRequest;
+import com.subastasya.backend.controller.dto.MedioPagoRequest;
+import com.subastasya.backend.controller.dto.RegistroEtapa1Request;
+import com.subastasya.backend.model.Cliente;
+import com.subastasya.backend.model.EstadoRegistro;
+import com.subastasya.backend.model.MedioDePago;
+import com.subastasya.backend.repository.ClienteRepository;
+import com.subastasya.backend.repository.MedioDePagoRepository;
+import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.Optional;
+
+@RestController
+@RequestMapping("/api/v1/auth")
+@RequiredArgsConstructor
+public class AuthController {
+
+    @Autowired
+    private ClienteRepository clienteRepository;
+
+    @Autowired
+    private MedioDePagoRepository medioDePagoRepository;
+
+    // ─────────────────────────────────────────────
+    // ETAPA 1: El usuario envía sus datos y fotos
+    //          → queda PENDIENTE_VALIDACION
+    // ─────────────────────────────────────────────
+    @PostMapping("/registro")
+    public ResponseEntity<?> registroEtapa1(@RequestBody RegistroEtapa1Request request) {
+        if (request.getEmail() == null || request.getEmail().isBlank()) {
+            return ResponseEntity.badRequest().body("El email es obligatorio.");
+        }
+
+        if (clienteRepository.findByEmail(request.getEmail()).isPresent()) {
+            return ResponseEntity.status(HttpStatus.CONFLICT).body("Ya existe una cuenta con este email.");
+        }
+
+        Cliente usuario = new Cliente();
+        usuario.setEmail(request.getEmail());
+        usuario.setNombre(request.getNombre() + " " + request.getApellido());
+        usuario.setDireccion(request.getDomicilio());
+        // El profe pide "documento" obligatorio en la tabla personas, pero no lo pedimos en el front. Lo generamos.
+        usuario.setDocumento("DOC-" + System.currentTimeMillis());
+        // usuario.setTelefono(request.getTelefono()); // No existe en el modelo del profe
+        // usuario.setPais(null); // Requiere buscar la entidad Pais
+        // usuario.setFoto(null); // Requiere convertir a byte[]
+        usuario.setCategoria("comun");
+        
+        usuario.setEstadoRegistro(EstadoRegistro.PENDIENTE_VALIDACION);
+
+        clienteRepository.save(usuario);
+
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body("Registro recibido. Pendiente de validación por un administrador.");
+    }
+
+    // ─────────────────────────────────────────────
+    // ETAPA 2: El usuario aprobado genera su contraseña
+    //          → queda ACTIVO con password seteado
+    // ─────────────────────────────────────────────
+    @PostMapping("/activar")
+    public ResponseEntity<?> activarCuenta(@RequestBody ActivarCuentaRequest request) {
+        if (request.getToken() == null || request.getToken().isBlank()) {
+            return ResponseEntity.badRequest().body("Token de activación inválido.");
+        }
+
+        Optional<Cliente> opt = clienteRepository.findByActivationToken(request.getToken());
+        if (opt.isEmpty()) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body("Token inválido o expirado.");
+        }
+
+        Cliente usuario = opt.get();
+
+        if (usuario.getEstadoRegistro() != EstadoRegistro.APROBADO_PENDIENTE_CLAVE) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body("Esta cuenta no está pendiente de activación.");
+        }
+
+        if (request.getPassword() == null || request.getPassword().length() < 6) {
+            return ResponseEntity.badRequest()
+                    .body("La contraseña debe tener al menos 6 caracteres.");
+        }
+
+        usuario.setPassword(request.getPassword());
+        usuario.setEstadoRegistro(EstadoRegistro.ACTIVO);
+        usuario.setActivationToken(null); // Consumir el token
+        clienteRepository.save(usuario);
+
+        return ResponseEntity.ok("¡Cuenta activada! Ya podés iniciar sesión.");
+    }
+
+    // ─────────────────────────────────────────────
+    // LOGIN: Solo usuarios ACTIVOS con password
+    // ─────────────────────────────────────────────
+    @PostMapping("/login")
+    public ResponseEntity<?> login(@RequestBody LoginRequest request) {
+        Optional<Cliente> usuarioOpt = clienteRepository.findByEmail(request.getEmail());
+
+        if (usuarioOpt.isPresent()) {
+            Cliente usuario = usuarioOpt.get();
+
+            if (usuario.getEstadoRegistro() == EstadoRegistro.PENDIENTE_VALIDACION) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                        .body("Tu cuenta aún está pendiente de validación por un administrador.");
+            }
+
+            if (usuario.getEstadoRegistro() == EstadoRegistro.RECHAZADO) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                        .body("Tu registro fue rechazado. Contactá al administrador.");
+            }
+
+            if (usuario.getEstadoRegistro() == EstadoRegistro.APROBADO_PENDIENTE_CLAVE) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                        .body("Debés activar tu cuenta primero ingresando desde el link de tu correo (Etapa 2).");
+            }
+
+            if (usuario.getPassword() != null && usuario.getPassword().equals(request.getPassword())) {
+                return ResponseEntity.ok(usuario);
+            }
+        }
+
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                .body("Credenciales incorrectas.");
+    }
+
+    // ─────────────────────────────────────────────
+    // MEDIO DE PAGO: Obligatorio para poder pujar
+    // ─────────────────────────────────────────────
+    @PostMapping("/medio-pago")
+    public ResponseEntity<?> registrarMedioPago(@RequestBody MedioPagoRequest request) {
+        Optional<Cliente> opt = clienteRepository.findByEmail(request.getEmail());
+        if (opt.isEmpty()) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body("Usuario no encontrado.");
+        }
+
+        if (request.getTipo() == null || request.getNumero() == null || request.getTitular() == null) {
+            return ResponseEntity.badRequest()
+                    .body("Todos los campos del medio de pago son obligatorios.");
+        }
+
+        Cliente usuario = opt.get();
+        
+        MedioDePago medioPago = new MedioDePago();
+        medioPago.setCliente(usuario);
+        medioPago.setTipo(request.getTipo());
+        medioPago.setNumero(request.getNumero());
+        medioPago.setTitular(request.getTitular());
+        // Por defecto, lo dejamos sin verificar hasta que la empresa lo valide
+        medioPago.setVerificado(false);
+        
+        medioDePagoRepository.save(medioPago);
+
+        return ResponseEntity.ok(usuario);
+    }
+}

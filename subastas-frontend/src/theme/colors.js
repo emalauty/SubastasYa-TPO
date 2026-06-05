@@ -4,4 +4,5 @@ export const COLORS = {
   CARD_BG: '#FFFFFF',
   TEXT_TITLE: '#1B263B',
   TEXT_MAIN: '#000000',
+  ERROR: '#FF0000'
 };
