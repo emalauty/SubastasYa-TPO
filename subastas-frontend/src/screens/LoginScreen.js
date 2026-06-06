@@ -1,11 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity,
-  StyleSheet, ActivityIndicator
+  StyleSheet, ActivityIndicator, Image, Platform
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { COLORS } from '../theme/colors';
-
-const API_URL = 'http://192.168.0.107:8080/api/v1/auth/login';
+import { API_BASE_URL } from './api';
 
 export default function LoginScreen({ navigation }) {
   const [email, setEmail] = useState('');
@@ -14,6 +14,24 @@ export default function LoginScreen({ navigation }) {
   const [errorPassword, setErrorPassword] = useState('');
   const [errorGeneral, setErrorGeneral] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [rememberMe, setRememberMe] = useState(false);
+
+  useEffect(() => {
+    const loadCredentials = async () => {
+      try {
+        const storedEmail = await AsyncStorage.getItem('saved_email');
+        const storedPassword = await AsyncStorage.getItem('saved_password');
+        if (storedEmail !== null && storedPassword !== null) {
+          setEmail(storedEmail);
+          setPassword(storedPassword);
+          setRememberMe(true);
+        }
+      } catch (e) {
+        console.error('Failed to load credentials', e);
+      }
+    };
+    loadCredentials();
+  }, []);
 
   const validateEmail = (text) => {
     const regex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -43,7 +61,7 @@ export default function LoginScreen({ navigation }) {
 
     setIsLoading(true);
     try {
-      const response = await fetch(API_URL, {
+      const response = await fetch(`${API_BASE_URL}/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password }),
@@ -51,6 +69,19 @@ export default function LoginScreen({ navigation }) {
 
       if (response.ok) {
         const usuario = await response.json();
+        
+        try {
+          if (rememberMe) {
+            await AsyncStorage.setItem('saved_email', email);
+            await AsyncStorage.setItem('saved_password', password);
+          } else {
+            await AsyncStorage.removeItem('saved_email');
+            await AsyncStorage.removeItem('saved_password');
+          }
+        } catch (e) {
+          console.error('Failed to save credentials', e);
+        }
+
         navigation.replace('Home', { usuario });
       } else if (response.status === 403) {
         const msg = await response.text();
@@ -74,7 +105,12 @@ export default function LoginScreen({ navigation }) {
       </View>
 
       <View style={styles.imagePlaceholder}>
-        <Text style={styles.imageEmoji}>🧑‍⚖️🔨</Text>
+        <Image
+          source={require('../../assets/logo.png')}
+          style={styles.logoImage}
+          resizeMode="contain"
+        />
+        <Text style={styles.logoText}>SubastasYa</Text>
       </View>
 
       <View style={styles.inputContainer}>
@@ -103,11 +139,13 @@ export default function LoginScreen({ navigation }) {
       </View>
 
       <View style={styles.optionsRow}>
-        <TouchableOpacity style={styles.checkboxContainer}>
-          <View style={styles.checkbox} />
+        <TouchableOpacity style={styles.checkboxContainer} onPress={() => setRememberMe(!rememberMe)}>
+          <View style={[styles.checkbox, rememberMe && styles.checkboxChecked]}>
+             {rememberMe && <Text style={styles.checkboxCheckmark}>✓</Text>}
+          </View>
           <Text style={styles.checkboxText}>Recordarme</Text>
         </TouchableOpacity>
-        <TouchableOpacity>
+        <TouchableOpacity onPress={() => navigation.navigate('ForgotPassword')}>
           <Text style={styles.forgotPasswordText}>¿Olvidaste tu contraseña?</Text>
         </TouchableOpacity>
       </View>
@@ -157,11 +195,21 @@ const styles = StyleSheet.create({
   },
   subtitle: { fontSize: 16, color: '#555' },
   imagePlaceholder: {
-    height: 180, backgroundColor: '#FFF', borderRadius: 15,
+    height: 190, backgroundColor: '#FFF', borderRadius: 15,
     justifyContent: 'center', alignItems: 'center', marginBottom: 30,
     borderWidth: 1, borderColor: '#EEE'
   },
-  imageEmoji: { fontSize: 60 },
+  logoImage: { width: 120, height: 120 },
+  logoText: {
+    fontFamily: Platform.OS === 'ios' ? 'Georgia' : 'serif',
+    fontSize: 28,
+    color: '#852221',
+    fontWeight: 'bold',
+    textShadowColor: 'white',
+    textShadowOffset: { width: 1, height: 1 },
+    textShadowRadius: 1,
+    marginTop: -5,
+  },
   inputContainer: { marginBottom: 20 },
   input: {
     borderBottomWidth: 1, borderBottomColor: '#000',
@@ -174,7 +222,9 @@ const styles = StyleSheet.create({
     marginBottom: 30,
   },
   checkboxContainer: { flexDirection: 'row', alignItems: 'center' },
-  checkbox: { width: 16, height: 16, borderWidth: 1, borderColor: '#555', marginRight: 8, borderRadius: 2 },
+  checkbox: { width: 18, height: 18, borderWidth: 1, borderColor: '#555', marginRight: 8, borderRadius: 4, justifyContent: 'center', alignItems: 'center' },
+  checkboxChecked: { backgroundColor: COLORS.PRIMARY, borderColor: COLORS.PRIMARY },
+  checkboxCheckmark: { color: '#FFF', fontSize: 12, fontWeight: 'bold' },
   checkboxText: { fontSize: 14, color: '#333' },
   forgotPasswordText: { fontSize: 14, color: '#7EADD6' }, // Light blue like wireframe
   errorBox: {
@@ -193,3 +243,4 @@ const styles = StyleSheet.create({
   registerText: { color: '#333', fontSize: 15 },
   registerLink: { color: '#1B263B', fontSize: 15, fontWeight: 'bold' },
 });
+

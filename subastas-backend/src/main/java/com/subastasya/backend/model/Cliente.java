@@ -35,5 +35,6 @@ public class Cliente extends Persona {
     private EstadoRegistro estadoRegistro = EstadoRegistro.PENDIENTE_VALIDACION;
 
     private String activationToken;
+    private String recoveryToken;
     // ------------------------------------------------------
 }

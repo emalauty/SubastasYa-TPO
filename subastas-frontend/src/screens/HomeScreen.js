@@ -4,8 +4,8 @@ import {
   ActivityIndicator, TouchableOpacity, Alert
 } from 'react-native';
 import { COLORS } from '../theme/colors';
+import { API_BASE_URL } from './api';
 
-const SUBASTAS_URL = 'http://192.168.0.107:8080/api/v1/subastas';
 
 export default function HomeScreen({ navigation, route }) {
   const usuario = route?.params?.usuario;
@@ -18,7 +18,7 @@ export default function HomeScreen({ navigation, route }) {
 
   const fetchSubastas = async () => {
     try {
-      const response = await fetch(SUBASTAS_URL);
+      const response = await fetch(API_BASE_URL.replace('/auth', '/subastas'));
       const data = await response.json();
       setSubastas(data);
     } catch (error) {

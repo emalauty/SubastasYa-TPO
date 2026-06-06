@@ -1,6 +1,7 @@
 package com.subastasya.backend.controller;
 
 import com.subastasya.backend.controller.dto.ActivarCuentaRequest;
+import com.subastasya.backend.controller.dto.ForgotPasswordRequest;
 import com.subastasya.backend.controller.dto.LoginRequest;
 import com.subastasya.backend.controller.dto.MedioPagoRequest;
 import com.subastasya.backend.controller.dto.RegistroEtapa1Request;
@@ -9,6 +10,7 @@ import com.subastasya.backend.model.EstadoRegistro;
 import com.subastasya.backend.model.MedioDePago;
 import com.subastasya.backend.repository.ClienteRepository;
 import com.subastasya.backend.repository.MedioDePagoRepository;
+import com.subastasya.backend.service.EmailService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -16,6 +18,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Optional;
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/v1/auth")
@@ -27,6 +30,9 @@ public class AuthController {
 
     @Autowired
     private MedioDePagoRepository medioDePagoRepository;
+
+    @Autowired
+    private EmailService emailService;
 
     // ─────────────────────────────────────────────
     // ETAPA 1: El usuario envía sus datos y fotos
@@ -79,9 +85,12 @@ public class AuthController {
 
         Cliente usuario = opt.get();
 
-        if (usuario.getEstadoRegistro() != EstadoRegistro.APROBADO_PENDIENTE_CLAVE) {
+        // Acepta tanto activación inicial (APROBADO_PENDIENTE_CLAVE)
+        // como recuperación de contraseña (ACTIVO con token temporal)
+        if (usuario.getEstadoRegistro() != EstadoRegistro.APROBADO_PENDIENTE_CLAVE
+                && usuario.getEstadoRegistro() != EstadoRegistro.ACTIVO) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                    .body("Esta cuenta no está pendiente de activación.");
+                    .body("Esta cuenta no puede usar este proceso en su estado actual.");
         }
 
         if (request.getPassword() == null || request.getPassword().length() < 6) {
@@ -90,11 +99,14 @@ public class AuthController {
         }
 
         usuario.setPassword(request.getPassword());
-        usuario.setEstadoRegistro(EstadoRegistro.ACTIVO);
-        usuario.setActivationToken(null); // Consumir el token
+        // Si era activación inicial, pasar a ACTIVO; si ya era ACTIVO, mantenerlo
+        if (usuario.getEstadoRegistro() == EstadoRegistro.APROBADO_PENDIENTE_CLAVE) {
+            usuario.setEstadoRegistro(EstadoRegistro.ACTIVO);
+        }
+        usuario.setActivationToken(null); // Consumir el token (no reutilizable)
         clienteRepository.save(usuario);
 
-        return ResponseEntity.ok("¡Cuenta activada! Ya podés iniciar sesión.");
+        return ResponseEntity.ok("¡Contraseña actualizada! Ya podés iniciar sesión.");
     }
 
     // ─────────────────────────────────────────────
@@ -160,5 +172,42 @@ public class AuthController {
         medioDePagoRepository.save(medioPago);
 
         return ResponseEntity.ok(usuario);
+    }
+
+    // ─────────────────────────────────────────────
+    // FORGOT PASSWORD: Genera token y envía email
+    // Guarda en activationToken (campo existente) para
+    // que el paso 2 reutilice el endpoint /activar
+    // ─────────────────────────────────────────────
+    @PostMapping("/forgot-password")
+    public ResponseEntity<?> forgotPassword(@RequestBody ForgotPasswordRequest request) {
+        if (request.getEmail() == null || request.getEmail().isBlank()) {
+            return ResponseEntity.badRequest().body("El email es obligatorio.");
+        }
+
+        // Por seguridad, siempre respondemos OK aunque el email no exista
+        Optional<Cliente> opt = clienteRepository.findByEmail(request.getEmail().trim());
+        if (opt.isPresent()) {
+            Cliente usuario = opt.get();
+
+            // Solo permitir recuperación si la cuenta está activa
+            if (usuario.getEstadoRegistro() == EstadoRegistro.ACTIVO) {
+                // Reutilizamos activationToken (campo existente) para no crear
+                // infraestructura nueva. El paso 2 usa /activar igual que en registro.
+                String token = UUID.randomUUID().toString();
+                usuario.setActivationToken(token);
+                clienteRepository.save(usuario);
+
+                try {
+                    emailService.sendRecoveryEmail(usuario.getEmail(), token);
+                } catch (Exception e) {
+                    System.err.println("Error enviando email de recuperación: " + e.getMessage());
+                }
+            }
+        }
+
+        return ResponseEntity.ok(
+                "Si el correo está registrado y activo, recibirás un enlace de recuperación."
+        );
     }
 }

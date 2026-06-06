@@ -3,12 +3,14 @@ import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 
 import SplashScreen from './src/screens/SplashScreen';
+import WelcomeScreen from './src/screens/WelcomeScreen';
 import LoginScreen from './src/screens/LoginScreen';
 import HomeScreen from './src/screens/HomeScreen';
 import RegistroEtapa1Screen from './src/screens/RegistroEtapa1Screen';
 import RegistroEtapa2Screen from './src/screens/RegistroEtapa2Screen';
 import MedioPagoScreen from './src/screens/MedioPagoScreen';
 import ProfileDashboardScreen from './src/screens/ProfileDashboardScreen';
+import ForgotPasswordScreen from './src/screens/ForgotPasswordScreen';
 
 const Stack = createNativeStackNavigator();
 
@@ -20,13 +22,16 @@ export default function App() {
         screenOptions={{ headerShown: false }}
       >
         <Stack.Screen name="Splash" component={SplashScreen} />
+        <Stack.Screen name="Welcome" component={WelcomeScreen} />
         <Stack.Screen name="Login" component={LoginScreen} />
         <Stack.Screen name="RegistroEtapa1" component={RegistroEtapa1Screen} />
         <Stack.Screen name="RegistroEtapa2" component={RegistroEtapa2Screen} />
         <Stack.Screen name="MedioPago" component={MedioPagoScreen} />
         <Stack.Screen name="Home" component={HomeScreen} />
         <Stack.Screen name="ProfileDashboard" component={ProfileDashboardScreen} />
+        <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
       </Stack.Navigator>
     </NavigationContainer>
   );
 }
+

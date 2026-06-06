@@ -4,8 +4,7 @@ import {
   StyleSheet, ActivityIndicator, ScrollView
 } from 'react-native';
 import { COLORS } from '../theme/colors';
-
-const API_BASE = 'http://192.168.0.107:8080/api/v1/auth';
+import { API_BASE_URL } from './api';
 
 const TIPOS_PAGO = [
   { key: 'TARJETA', label: '💳 Tarjeta de Crédito/Débito' },
@@ -42,7 +41,7 @@ export default function MedioPagoScreen({ navigation, route }) {
 
     setIsLoading(true);
     try {
-      const response = await fetch(`${API_BASE}/medio-pago`, {
+      const response = await fetch(`${API_BASE_URL}/medio-pago`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

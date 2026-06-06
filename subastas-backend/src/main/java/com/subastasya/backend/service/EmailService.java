@@ -25,4 +25,19 @@ public class EmailService {
         
         emailSender.send(message);
     }
+
+    public void sendRecoveryEmail(String to, String token) {
+        SimpleMailMessage message = new SimpleMailMessage(); 
+        message.setTo(to); 
+        message.setSubject("SubastasYa - Recuperación de contraseña"); 
+        message.setText("¡Hola!\n\n" +
+                "Hemos recibido una solicitud para recuperar tu contraseña.\n\n" +
+                "Para crear una nueva contraseña, ingresá a la app, ve a la sección 'Recuperar Contraseña' " +
+                "y pegá el siguiente código de recuperación:\n\n" +
+                token + "\n\n" +
+                "Si no solicitaste este cambio, podés ignorar este correo.\n\n" +
+                "El equipo de Sello.");
+        
+        emailSender.send(message);
+    }
 }

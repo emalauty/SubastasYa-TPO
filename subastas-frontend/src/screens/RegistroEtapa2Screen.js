@@ -4,8 +4,7 @@ import {
   StyleSheet, ActivityIndicator, ScrollView
 } from 'react-native';
 import { COLORS } from '../theme/colors';
-
-const API_BASE = 'http://192.168.0.107:8080/api/v1/auth';
+import { API_BASE_URL } from './api';
 
 export default function RegistroEtapa2Screen({ navigation, route }) {
   const [email, setEmail] = useState('');
@@ -44,7 +43,7 @@ export default function RegistroEtapa2Screen({ navigation, route }) {
     
     try {
       // 1. Activar cuenta (Set Password usando el token)
-      const resActivar = await fetch(`${API_BASE}/activar`, {
+      const resActivar = await fetch(`${API_BASE_URL}/activar`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ token, password }),
@@ -58,7 +57,7 @@ export default function RegistroEtapa2Screen({ navigation, route }) {
       }
 
       // 2. Registrar Medio de Pago
-      const resPago = await fetch(`${API_BASE}/medio-pago`, {
+      const resPago = await fetch(`${API_BASE_URL}/medio-pago`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

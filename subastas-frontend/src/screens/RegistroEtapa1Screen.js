@@ -5,8 +5,7 @@ import {
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { COLORS } from '../theme/colors';
-
-const API_BASE = 'http://192.168.0.107:8080/api/v1/auth';
+import { API_BASE_URL } from './api';
 
 const Campo = ({ label, field, keyboard, secure, placeholder, form, setField, errors, setErrors }) => (
   <View style={styles.fieldContainer}>
@@ -111,7 +110,7 @@ export default function RegistroEtapa1Screen({ navigation }) {
     setIsLoading(true);
     setMensajeGeneral({ tipo: '', texto: '' });
     try {
-      const response = await fetch(`${API_BASE}/registro`, {
+      const response = await fetch(`${API_BASE_URL}/registro`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(form),
